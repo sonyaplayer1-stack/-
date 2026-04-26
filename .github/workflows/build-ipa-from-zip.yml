@@ -1,0 +1,44 @@
+name: Build IPA from ZIP
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Unzip project
+        run: |
+          unzip -q MiniDashCube_iOS_WebView_Project_With_GitHub_Actions.zip -d extracted
+          ls -R extracted
+
+      - name: Build app without signing
+        run: |
+          cd extracted/MiniDashCube_iOS_WebView_Project
+          xcodebuild \
+            -project MiniDashCubeApp.xcodeproj \
+            -target MiniDashCubeApp \
+            -configuration Release \
+            -sdk iphoneos \
+            SYMROOT=build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
+
+      - name: Make unsigned IPA
+        run: |
+          mkdir -p Payload
+          cp -R extracted/MiniDashCube_iOS_WebView_Project/build/Release-iphoneos/MiniDashCubeApp.app Payload/
+          zip -r MiniDashCubeApp-unsigned.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiniDashCubeApp-unsigned-ipa
+          path: MiniDashCubeApp-unsigned.ipa
