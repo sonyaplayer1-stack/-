@@ -1,0 +1,56 @@
+name: Build clean IPA from ZIP
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Unzip project
+        run: |
+          rm -rf extracted
+          unzip -q MiniDashCube_iOS_WebView_Project_With_GitHub_Actions.zip -d extracted
+          find extracted -maxdepth 3 -type d -name "*.xcodeproj" -print
+
+      - name: Build app without signing
+        run: |
+          cd extracted/MiniDashCube_iOS_WebView_Project
+          xcodebuild \
+            -project MiniDashCubeApp.xcodeproj \
+            -target MiniDashCubeApp \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
+
+      - name: Find built app
+        run: |
+          APP_PATH=$(find extracted/MiniDashCube_iOS_WebView_Project/DerivedData/Build/Products/Release-iphoneos -name "*.app" -type d | head -n 1)
+          echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
+          echo "Found app:"
+          echo "$APP_PATH"
+          ls -la "$APP_PATH"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_PATH/Info.plist"
+
+      - name: Make clean unsigned IPA
+        run: |
+          rm -rf Payload
+          mkdir Payload
+          cp -R "$APP_PATH" Payload/
+          ditto -c -k --sequesterRsrc --keepParent Payload MiniDashCubeApp-clean-unsigned.ipa
+          unzip -l MiniDashCubeApp-clean-unsigned.ipa
+
+      - name: Upload clean IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiniDashCubeApp-clean-unsigned-ipa
+          path: MiniDashCubeApp-clean-unsigned.ipa
